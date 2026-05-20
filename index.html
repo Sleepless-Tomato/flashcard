@@ -155,6 +155,62 @@
     color: #bbb;
   }
 
+  /* batch size selector */
+  .batch-select {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: #888;
+  }
+  .batch-select button {
+    padding: 4px 12px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    color: #555;
+    transition: all .15s;
+  }
+  .batch-select button.active {
+    background: #4a90d9;
+    color: #fff;
+    border-color: #4a90d9;
+  }
+  .batch-select button:active { transform: scale(.95); }
+
+  /* multi-word list */
+  .card-face, .card-back { overflow-y: auto; }
+  .word-list { width: 100%; }
+  .word-list .word-item {
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 22px;
+    font-weight: 500;
+    color: #222;
+    text-align: left;
+    line-height: 1.5;
+  }
+  .word-list .word-item:last-child { border-bottom: none; }
+  .word-list .w-en { font-size: 18px; font-weight: 500; color: #333; }
+  .word-list .w-zh { font-size: 16px; color: #e67e22; margin-left: 8px; }
+  .card-back .word-list .word-item {
+    font-size: 16px;
+    font-weight: 400;
+    padding: 5px 0;
+  }
+  .card-face .word-list { padding: 0; }
+  .card-back .word-list { padding: 0; }
+
+  /* hide old single-word elements when using multi mode */
+  .batch-1 .word-list .word-item { font-size: 34px; font-weight: 600; text-align: center; }
+  .batch-1 .card-back .word-list .word-item { font-size: 22px; font-weight: 500; text-align: center; }
+  .batch-1 .card-back .word-list .w-zh { font-size: 24px; }
+  .batch-1 .card-back .word-list .w-en { display: block; font-size: 20px; margin-bottom: 6px; }
+
   /* shuffle button etc */
   .controls {
     display: flex;
@@ -198,8 +254,8 @@
 
   @media (max-width: 480px) {
     .container { padding: 10px; }
-    .card { aspect-ratio: auto; height: 280px; max-height: 50vh; }
-    .card-face, .card-back { padding: 20px; }
+    .card { aspect-ratio: auto; height: 280px; max-height: 55vh; }
+    .card-face, .card-back { padding: 16px; }
     .card-face .word { font-size: 26px; }
     .card-face .hint { font-size: 12px; margin-top: 8px; }
     .card-back .word-back { font-size: 18px; margin-bottom: 8px; }
@@ -211,15 +267,29 @@
     .controls { gap: 8px; }
     .controls button { padding: 8px 16px; font-size: 14px; min-width: 0; flex: 1; max-width: 120px; }
     .btn-next { min-width: 80px; }
+    .word-list .word-item { font-size: 18px; padding: 4px 0; }
+    .word-list .w-en { font-size: 15px; }
+    .word-list .w-zh { font-size: 14px; }
+    .batch-1 .word-list .word-item { font-size: 26px; }
+    .batch-1 .card-back .word-list .word-item { font-size: 18px; }
+    .batch-1 .card-back .word-list .w-zh { font-size: 20px; }
+    .batch-select { font-size: 12px; gap: 4px; }
+    .batch-select button { padding: 3px 10px; font-size: 12px; }
   }
   @media (max-width: 360px) {
     .card { height: 220px; }
     .card-face .word { font-size: 22px; }
     .card-back .meaning { font-size: 17px; }
     .card-back .word-back { font-size: 15px; }
-    .card-face, .card-back { padding: 14px; }
+    .card-face, .card-back { padding: 12px; }
     .controls button { font-size: 12px; padding: 6px 10px; }
     .filter button { padding: 2px 5px; font-size: 10px; }
+    .word-list .word-item { font-size: 15px; padding: 3px 0; }
+    .word-list .w-en { font-size: 13px; }
+    .word-list .w-zh { font-size: 12px; }
+    .batch-1 .word-list .word-item { font-size: 22px; }
+    .batch-1 .card-back .word-list .word-item { font-size: 15px; }
+    .batch-1 .card-back .word-list .w-zh { font-size: 17px; }
   }
 </style>
 </head>
@@ -236,15 +306,22 @@
   <div class="card" id="card">
     <div class="card-inner">
       <div class="card-face">
-        <div class="word" id="wordDisplay">3500词</div>
+        <div class="word-list" id="wordList"><div class="word-item">3500词</div></div>
         <div class="hint">点击显示释义</div>
       </div>
       <div class="card-back">
-        <div class="word-back" id="wordBackDisplay"></div>
-        <div class="meaning" id="meaningDisplay"></div>
+        <div class="word-list" id="meaningList"></div>
         <div class="section-tag" id="sectionTag"></div>
       </div>
     </div>
+  </div>
+
+  <div class="batch-select">
+    <span>每次显示：</span>
+    <button class="active" data-batch="1">1</button>
+    <button data-batch="3">3</button>
+    <button data-batch="5">5</button>
+    <button data-batch="7">7</button>
   </div>
 
   <div class="controls">
@@ -268,6 +345,7 @@ let filtered = [];
 let currentIdx = 0;
 let flipped = false;
 let activeSection = null;
+let batchSize = 1;
 
 // ---------- init ----------
 all = WORDS;
@@ -304,10 +382,22 @@ function applyFilter() {
   render();
 }
 
+// ---------- batch size ----------
+document.querySelector('.batch-select').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('.batch-select button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  batchSize = parseInt(btn.dataset.batch);
+  currentIdx = 0;
+  flipped = false;
+  render();
+});
+
 // ---------- render ----------
 function render() {
-  const wordEl = document.getElementById('wordDisplay');
-  const meaningEl = document.getElementById('meaningDisplay');
+  const wordList = document.getElementById('wordList');
+  const meaningList = document.getElementById('meaningList');
   const sectionTag = document.getElementById('sectionTag');
   const idxLabel = document.getElementById('idxLabel');
   const progressBar = document.getElementById('progressBar');
@@ -315,9 +405,12 @@ function render() {
   const card = document.getElementById('card');
   const nextBtn = document.getElementById('nextBtn');
 
+  // toggle batch-1 class for visual style
+  card.classList.toggle('batch-1', batchSize === 1);
+
   if (!filtered.length) {
-    wordEl.textContent = '-';
-    meaningEl.textContent = '-';
+    wordList.innerHTML = '<div class="word-item">-</div>';
+    meaningList.innerHTML = '';
     sectionTag.textContent = '';
     idxLabel.textContent = '0 / 0';
     progressBar.style.width = '0%';
@@ -327,15 +420,28 @@ function render() {
     return;
   }
 
-  const entry = filtered[currentIdx];
-  wordEl.textContent = entry.word;
-  const wordBackEl = document.getElementById('wordBackDisplay');
-  wordBackEl.textContent = flipped ? entry.word : '';
-  meaningEl.textContent = flipped ? entry.meaning : '';
-  sectionTag.textContent = flipped ? entry.section : '';
-  idxLabel.textContent = (currentIdx + 1) + ' / ' + filtered.length;
-  progressBar.style.width = ((currentIdx + 1) / filtered.length * 100) + '%';
-  sectionLabel.textContent = entry.section;
+  const batch = filtered.slice(currentIdx, currentIdx + batchSize);
+  const start = currentIdx + 1;
+  const end = Math.min(currentIdx + batchSize, filtered.length);
+
+  // Front: English words
+  if (batchSize === 1) {
+    const w = batch[0];
+    wordList.innerHTML = '<div class="word-item">' + w.word + '</div>';
+    meaningList.innerHTML = '<div class="word-item"><span class="w-en">' + w.word + '</span><span class="w-zh">' + w.meaning + '</span></div>';
+  } else {
+    wordList.innerHTML = batch.map((w, i) =>
+      '<div class="word-item">' + (start + i) + '. ' + w.word + '</div>'
+    ).join('');
+    meaningList.innerHTML = batch.map((w, i) =>
+      '<div class="word-item"><span class="w-en">' + (start + i) + '. ' + w.word + '</span><span class="w-zh">' + w.meaning + '</span></div>'
+    ).join('');
+  }
+
+  sectionTag.textContent = batch.map(w => w.section).filter((s, i, a) => a.indexOf(s) === i).join(', ');
+  idxLabel.textContent = start + '-' + end + ' / ' + filtered.length;
+  progressBar.style.width = (end / filtered.length * 100) + '%';
+  sectionLabel.textContent = filtered[currentIdx].section;
 
   if (!flipped) {
     card.classList.remove('flipped');
@@ -354,8 +460,8 @@ document.getElementById('card').addEventListener('click', function() {
     render();
     return;
   }
-  if (currentIdx < filtered.length - 1) {
-    currentIdx++;
+  if (currentIdx + batchSize < filtered.length) {
+    currentIdx += batchSize;
   } else {
     currentIdx = 0;
   }
@@ -370,9 +476,8 @@ document.getElementById('prevBtn').addEventListener('click', function(e) {
     flipped = false;
     render();
   } else {
-    // go back
-    if (currentIdx > 0) {
-      currentIdx--;
+    if (currentIdx - batchSize >= 0) {
+      currentIdx -= batchSize;
     }
     flipped = true;
     render();
@@ -387,8 +492,8 @@ document.getElementById('nextBtn').addEventListener('click', function(e) {
     render();
     return;
   }
-  if (currentIdx < filtered.length - 1) {
-    currentIdx++;
+  if (currentIdx + batchSize < filtered.length) {
+    currentIdx += batchSize;
   } else {
     currentIdx = 0;
   }
